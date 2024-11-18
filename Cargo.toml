@@ -1,5 +1,6 @@
 [package]
 name = "getemail"
+license = "MIT"
 version = "0.0.1"
 edition = "2021"
 description = "Get email's from POP3 or IMAP mailbox"
