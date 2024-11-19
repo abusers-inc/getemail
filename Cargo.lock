@@ -611,6 +611,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "getemail"
+version = "0.0.2"
+dependencies = [
+ "anyhow",
+ "async-imap",
+ "async-pop",
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "fast-socks5",
+ "futures",
+ "futures-util",
+ "mail-parser",
+ "proxied",
+ "regex",
+ "rustls",
+ "self_cell",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "tokio",
+ "tokio-rustls",
+ "tracing",
+ "webpki-roots",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -921,32 +948,6 @@ name = "libc"
 version = "0.2.164"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "433bfe06b8c75da9b2e3fbea6e5329ff87748f0b144ef75306e674c3f6f7c13f"
-
-[[package]]
-name = "libemail"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-imap",
- "async-pop",
- "base64 0.22.1",
- "chrono",
- "fast-socks5",
- "futures",
- "futures-util",
- "mail-parser",
- "proxied",
- "regex",
- "rustls",
- "self_cell",
- "serde",
- "serde_json",
- "serde_with",
- "tokio",
- "tokio-rustls",
- "tracing",
- "webpki-roots",
-]
 
 [[package]]
 name = "libloading"

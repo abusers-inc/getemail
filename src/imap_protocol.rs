@@ -8,8 +8,7 @@ use futures::StreamExt;
 use mail_parser::MessageParser;
 
 use crate::{
-    common, Conn, EmailIdleHandle, EmailProtocol, EmailProtocolConnector, Filter, Mailbox,
-    OwnedMessage,
+    common, Conn, Connector, Email, EmailReader, Filter, IdleHandle, Mailbox, OwnedMessage,
 };
 
 pub struct PlainAuth {
@@ -20,7 +19,7 @@ pub struct PlainAuth {
 impl async_imap::Authenticator for PlainAuth {
     type Response = String;
 
-    fn process(&mut self, challenge: &[u8]) -> Self::Response {
+    fn process(&mut self, _: &[u8]) -> Self::Response {
         let login_data = format!("\0{}\0{}", self.login.clone(), self.password.clone());
         login_data
     }
@@ -34,20 +33,17 @@ struct OAuth2 {
 impl async_imap::Authenticator for OAuth2 {
     type Response = String;
 
-    fn process(&mut self, challenge: &[u8]) -> Self::Response {
+    fn process(&mut self, _: &[u8]) -> Self::Response {
         let payload = format!(
             "user={}\x01auth=Bearer {}\x01\x01",
             &self.login, &self.token
         );
-        // let encoded = base64::engine::general_purpose::STANDARD.encode(payload);
-        // encoded
         payload
     }
 }
 
 pub struct ImapProtocol {
     session: async_imap::Session<Box<dyn Conn>>,
-    // mail: Mailbox,
 }
 
 impl ImapProtocol {
@@ -114,13 +110,13 @@ impl ImapProtocol {
     pub async fn crawl_folders(
         &mut self,
         folders: &Vec<String>,
-        filter: Option<&impl Filter>,
+        filter: Option<impl Filter>,
     ) -> anyhow::Result<Vec<OwnedMessage>> {
         let mut res = Vec::new();
 
         for folder in folders.iter() {
             res.extend(
-                self.crawl_messages(folder, filter.clone())
+                self.crawl_messages(folder, filter.as_ref())
                     .await?
                     .into_iter(),
             );
@@ -130,12 +126,12 @@ impl ImapProtocol {
     }
 }
 
-pub struct IdleHandle {
+pub struct ImapIdleHandle {
     handle: tokio::task::JoinHandle<anyhow::Result<async_imap::Session<Box<dyn Conn>>>>,
     stop_flag: Arc<AtomicBool>,
 }
 
-impl IdleHandle {
+impl ImapIdleHandle {
     // pub async fn init(&mut self) -> anyhow::Result<()> {
     //     self.handle.init().await?;
     //     Ok(())
@@ -149,7 +145,7 @@ impl IdleHandle {
     }
 }
 
-impl EmailIdleHandle for IdleHandle {
+impl IdleHandle for ImapIdleHandle {
     type Output = ImapProtocol;
 
     fn done(self) -> impl std::future::Future<Output = anyhow::Result<Self::Output>> + Send {
@@ -157,18 +153,18 @@ impl EmailIdleHandle for IdleHandle {
     }
 }
 
-impl EmailProtocol for ImapProtocol {
-    type IdleHandle = IdleHandle;
-
-    fn get_filtered_emails(
+impl EmailReader for ImapProtocol {
+    async fn get_filtered_emails(
         &mut self,
-        filter: Option<&impl Filter>,
-    ) -> impl std::future::Future<Output = anyhow::Result<Vec<OwnedMessage>>> + Send {
-        async move {
-            let folders = self.get_folders().await?;
-            self.crawl_folders(&folders, filter).await
-        }
+        filter: Option<impl Filter>,
+    ) -> anyhow::Result<Vec<OwnedMessage>> {
+        let folders = self.get_folders().await?;
+
+        self.crawl_folders(&folders, filter.as_ref()).await
     }
+}
+impl Email for ImapProtocol {
+    type IdleHandle = ImapIdleHandle;
 
     fn idlize(self) -> impl std::future::Future<Output = anyhow::Result<Self::IdleHandle>> + Send {
         async move {
@@ -186,7 +182,7 @@ impl EmailProtocol for ImapProtocol {
             };
 
             let task = tokio::task::spawn(task());
-            Ok(IdleHandle {
+            Ok(ImapIdleHandle {
                 handle: task,
                 stop_flag: flag,
             })
@@ -195,7 +191,7 @@ impl EmailProtocol for ImapProtocol {
 }
 
 pub struct ImapConnector;
-impl EmailProtocolConnector for ImapConnector {
+impl Connector for ImapConnector {
     type Protocol = ImapProtocol;
 
     async fn connect(mailbox: Mailbox) -> anyhow::Result<Self::Protocol> {

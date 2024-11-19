@@ -10,7 +10,7 @@ pub struct Pop3 {
 
 pub struct Pop3Handle(Mailbox);
 
-impl EmailIdleHandle for Pop3Handle {
+impl IdleHandle for Pop3Handle {
     type Output = Pop3;
 
     async fn done(self) -> anyhow::Result<Self::Output> {
@@ -19,12 +19,10 @@ impl EmailIdleHandle for Pop3Handle {
     }
 }
 
-impl EmailProtocol for Pop3 {
-    type IdleHandle = Pop3Handle;
-
+impl EmailReader for Pop3 {
     async fn get_filtered_emails(
         &mut self,
-        filter: Option<&impl Filter>,
+        filter: Option<impl Filter>,
     ) -> anyhow::Result<Vec<OwnedMessage>> {
         let stat = self.client.stat().await?;
         let total_msg_count = stat.counter().value()?;
@@ -42,7 +40,7 @@ impl EmailProtocol for Pop3 {
             })?;
 
             match filter {
-                Some(filter) if filter.filter(&new_msg) => result.push(new_msg),
+                Some(ref filter) if filter.filter(&new_msg) => result.push(new_msg),
                 _ => {
                     let brw = new_msg.borrow_dependent();
                     tracing::info!(event = "mail.filtered_out", msg = ?brw.subject(), date = ?brw.date());
@@ -52,6 +50,9 @@ impl EmailProtocol for Pop3 {
 
         Ok(result)
     }
+}
+impl Email for Pop3 {
+    type IdleHandle = Pop3Handle;
 
     async fn idlize(mut self) -> anyhow::Result<Self::IdleHandle> {
         self.client.quit().await?;
@@ -60,7 +61,7 @@ impl EmailProtocol for Pop3 {
 }
 
 pub struct Pop3Connector;
-impl EmailProtocolConnector for Pop3Connector {
+impl Connector for Pop3Connector {
     type Protocol = Pop3;
 
     async fn connect(mailbox: Mailbox) -> anyhow::Result<Self::Protocol> {
