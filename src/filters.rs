@@ -120,7 +120,7 @@ pub mod regex {
 
 pub struct NoFilter;
 impl super::Filter for NoFilter {
-    fn filter(&self, msg: &crate::OwnedMessage) -> bool {
+    fn filter(&self, _: &crate::OwnedMessage) -> bool {
         true
     }
 }
@@ -128,5 +128,12 @@ impl super::Filter for NoFilter {
 impl<T: Filter> Filter for &T {
     fn filter(&self, msg: &crate::OwnedMessage) -> bool {
         T::filter(self, msg)
+    }
+}
+
+impl Filter for Box<dyn Filter> {
+    fn filter(&self, msg: &crate::OwnedMessage) -> bool {
+        let reference = Box::as_ref(self);
+        reference.filter(msg)
     }
 }

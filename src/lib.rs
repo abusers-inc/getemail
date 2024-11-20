@@ -1,7 +1,3 @@
-use std::borrow::Cow;
-
-use chrono::{DateTime, Utc};
-use futures::StreamExt;
 use mail_parser::{Message, MessageParser};
 use proxied::Proxy;
 use tokio::io::AsyncWrite;
@@ -45,11 +41,18 @@ pub struct Mailbox {
     pub proxy: Option<Proxy>,
 }
 
-pub trait EmailReader: Send {
-    async fn get_filtered_emails(
+pub trait DynEmailReader: Send {
+    fn dyn_get_filtered_emails(
+        &mut self,
+        filter: Option<Box<dyn Filter>>,
+    ) -> impl std::future::Future<Output = anyhow::Result<Vec<OwnedMessage>>> + Send;
+}
+
+pub trait EmailReader: DynEmailReader {
+    fn get_filtered_emails(
         &mut self,
         filter: Option<impl Filter>,
-    ) -> anyhow::Result<Vec<OwnedMessage>>;
+    ) -> impl std::future::Future<Output = anyhow::Result<Vec<OwnedMessage>>> + Send;
 }
 
 pub trait Email: EmailReader {

@@ -8,7 +8,8 @@ use futures::StreamExt;
 use mail_parser::MessageParser;
 
 use crate::{
-    common, Conn, Connector, Email, EmailReader, Filter, IdleHandle, Mailbox, OwnedMessage,
+    common, Conn, Connector, DynEmailReader, Email, EmailReader, Filter, IdleHandle, Mailbox,
+    OwnedMessage,
 };
 
 pub struct PlainAuth {
@@ -124,6 +125,15 @@ impl ImapProtocol {
 
         Ok(res)
     }
+
+    async fn get_filtered_emails(
+        &mut self,
+        filter: Option<impl Filter>,
+    ) -> anyhow::Result<Vec<OwnedMessage>> {
+        let folders = self.get_folders().await?;
+
+        self.crawl_folders(&folders, filter.as_ref()).await
+    }
 }
 
 pub struct ImapIdleHandle {
@@ -153,14 +163,20 @@ impl IdleHandle for ImapIdleHandle {
     }
 }
 
+impl DynEmailReader for ImapProtocol {
+    fn dyn_get_filtered_emails(
+        &mut self,
+        filter: Option<Box<dyn Filter>>,
+    ) -> impl std::future::Future<Output = anyhow::Result<Vec<OwnedMessage>>> + Send {
+        self.get_filtered_emails(filter)
+    }
+}
 impl EmailReader for ImapProtocol {
-    async fn get_filtered_emails(
+    fn get_filtered_emails(
         &mut self,
         filter: Option<impl Filter>,
-    ) -> anyhow::Result<Vec<OwnedMessage>> {
-        let folders = self.get_folders().await?;
-
-        self.crawl_folders(&folders, filter.as_ref()).await
+    ) -> impl std::future::Future<Output = anyhow::Result<Vec<OwnedMessage>>> + Send {
+        self.get_filtered_emails(filter)
     }
 }
 impl Email for ImapProtocol {

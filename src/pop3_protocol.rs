@@ -8,18 +8,7 @@ pub struct Pop3 {
     mailbox_info: Mailbox,
 }
 
-pub struct Pop3Handle(Mailbox);
-
-impl IdleHandle for Pop3Handle {
-    type Output = Pop3;
-
-    async fn done(self) -> anyhow::Result<Self::Output> {
-        let connect = Pop3Connector::connect(self.0).await?;
-        Ok(connect)
-    }
-}
-
-impl EmailReader for Pop3 {
+impl Pop3 {
     async fn get_filtered_emails(
         &mut self,
         filter: Option<impl Filter>,
@@ -49,6 +38,34 @@ impl EmailReader for Pop3 {
         }
 
         Ok(result)
+    }
+}
+
+pub struct Pop3Handle(Mailbox);
+
+impl IdleHandle for Pop3Handle {
+    type Output = Pop3;
+
+    async fn done(self) -> anyhow::Result<Self::Output> {
+        let connect = Pop3Connector::connect(self.0).await?;
+        Ok(connect)
+    }
+}
+
+impl DynEmailReader for Pop3 {
+    fn dyn_get_filtered_emails(
+        &mut self,
+        filter: Option<Box<dyn Filter>>,
+    ) -> impl std::future::Future<Output = anyhow::Result<Vec<OwnedMessage>>> + Send {
+        self.get_filtered_emails(filter)
+    }
+}
+impl EmailReader for Pop3 {
+    fn get_filtered_emails(
+        &mut self,
+        filter: Option<impl Filter>,
+    ) -> impl std::future::Future<Output = anyhow::Result<Vec<OwnedMessage>>> + Send {
+        self.get_filtered_emails(filter)
     }
 }
 impl Email for Pop3 {
