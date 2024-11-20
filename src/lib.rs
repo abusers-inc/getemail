@@ -41,6 +41,7 @@ pub struct Mailbox {
     pub proxy: Option<Proxy>,
 }
 
+#[async_trait::async_trait]
 pub trait DynEmailReader: Send {
     fn dyn_get_filtered_emails(
         &mut self,

@@ -163,6 +163,7 @@ impl IdleHandle for ImapIdleHandle {
     }
 }
 
+#[async_trait::async_trait]
 impl DynEmailReader for ImapProtocol {
     fn dyn_get_filtered_emails(
         &mut self,

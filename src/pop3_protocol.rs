@@ -52,6 +52,7 @@ impl IdleHandle for Pop3Handle {
     }
 }
 
+#[async_trait::async_trait]
 impl DynEmailReader for Pop3 {
     fn dyn_get_filtered_emails(
         &mut self,
