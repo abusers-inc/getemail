@@ -22,7 +22,7 @@ pub async fn connect_maybe_proxied_stream_tls(
     domain: String,
     port: u16,
     proxy: Option<Proxy>,
-) -> anyhow::Result<Box<dyn Conn>> {
+) -> eyre::Result<Box<dyn Conn>> {
     let connector = create_connector();
 
     let tunnel: Box<dyn Conn> = match proxy {
@@ -38,7 +38,7 @@ pub async fn connect_maybe_proxied_stream_tls(
             let mut resolved = tokio::net::lookup_host((domain.clone(), port)).await?;
             let mut mail_socket = resolved
                 .next()
-                .ok_or_else(|| anyhow::anyhow!("mail lookup failed"))?;
+                .ok_or_else(|| eyre::eyre!("mail lookup failed"))?;
             mail_socket.set_port(port);
 
             Box::new(tokio::net::TcpStream::connect(mail_socket).await?)

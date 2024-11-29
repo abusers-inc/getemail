@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use eyre::eyre;
 use async_pop::response::types::DataType;
 
 use super::*;
@@ -12,7 +12,7 @@ impl Pop3 {
     async fn get_filtered_emails(
         &mut self,
         filter: Option<impl Filter>,
-    ) -> anyhow::Result<Vec<OwnedMessage>> {
+    ) -> eyre::Result<Vec<OwnedMessage>> {
         let stat = self.client.stat().await?;
         let total_msg_count = stat.counter().value()?;
         let mut result = Vec::new();
@@ -25,7 +25,7 @@ impl Pop3 {
 
             let parser = MessageParser::new();
             let new_msg = OwnedMessage::try_new(bytes, |x| {
-                parser.parse(x).ok_or(anyhow!("message parsing failed"))
+                parser.parse(x).ok_or(eyre!("message parsing failed"))
             })?;
 
             match filter {
@@ -46,7 +46,7 @@ pub struct Pop3Handle(Mailbox);
 impl IdleHandle for Pop3Handle {
     type Output = Pop3;
 
-    async fn done(self) -> anyhow::Result<Self::Output> {
+    async fn done(self) -> eyre::Result<Self::Output> {
         let connect = Pop3Connector::connect(self.0).await?;
         Ok(connect)
     }
@@ -57,7 +57,7 @@ impl DynEmailReader for Pop3 {
     async fn dyn_get_filtered_emails(
         &mut self,
         filter: Option<Box<dyn Filter>>,
-    ) -> anyhow::Result<Vec<OwnedMessage>> {
+    ) -> eyre::Result<Vec<OwnedMessage>> {
         self.get_filtered_emails(filter).await
     }
 }
@@ -65,14 +65,14 @@ impl EmailReader for Pop3 {
     fn get_filtered_emails(
         &mut self,
         filter: Option<impl Filter>,
-    ) -> impl std::future::Future<Output = anyhow::Result<Vec<OwnedMessage>>> + Send {
+    ) -> impl std::future::Future<Output = eyre::Result<Vec<OwnedMessage>>> + Send {
         self.get_filtered_emails(filter)
     }
 }
 impl Email for Pop3 {
     type IdleHandle = Pop3Handle;
 
-    async fn idlize(mut self) -> anyhow::Result<Self::IdleHandle> {
+    async fn idlize(mut self) -> eyre::Result<Self::IdleHandle> {
         self.client.quit().await?;
         Ok(Pop3Handle(self.mailbox_info))
     }
@@ -82,7 +82,7 @@ pub struct Pop3Connector;
 impl Connector for Pop3Connector {
     type Protocol = Pop3;
 
-    async fn connect(mailbox: Mailbox) -> anyhow::Result<Self::Protocol> {
+    async fn connect(mailbox: Mailbox) -> eyre::Result<Self::Protocol> {
         let stream = common::connect_maybe_proxied_stream_tls(
             mailbox.protocols.pop3.domain.clone(),
             mailbox.protocols.pop3.port,

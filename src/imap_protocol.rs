@@ -52,7 +52,7 @@ impl ImapProtocol {
         &mut self,
         folder: &str,
         filter: Option<&impl Filter>,
-    ) -> anyhow::Result<Vec<OwnedMessage>> {
+    ) -> eyre::Result<Vec<OwnedMessage>> {
         let mailbox = self.session.select(folder).await?;
         let fetch_result = self
             .session
@@ -74,7 +74,7 @@ impl ImapProtocol {
             let new_msg = OwnedMessage::try_new(body, |x| {
                 msg_parser
                     .parse(x)
-                    .ok_or(anyhow::anyhow!("message parsing failed"))
+                    .ok_or(eyre::eyre!("message parsing failed"))
             })?;
 
             if let Some(ref filter) = filter {
@@ -90,7 +90,7 @@ impl ImapProtocol {
         Ok(res)
     }
 
-    async fn get_folders(&mut self) -> anyhow::Result<Vec<String>> {
+    async fn get_folders(&mut self) -> eyre::Result<Vec<String>> {
         let server_folders: Vec<_> = self
             .session
             .list(None, Some("*"))
@@ -112,7 +112,7 @@ impl ImapProtocol {
         &mut self,
         folders: &Vec<String>,
         filter: Option<impl Filter>,
-    ) -> anyhow::Result<Vec<OwnedMessage>> {
+    ) -> eyre::Result<Vec<OwnedMessage>> {
         let mut res = Vec::new();
 
         for folder in folders.iter() {
@@ -129,7 +129,7 @@ impl ImapProtocol {
     async fn get_filtered_emails(
         &mut self,
         filter: Option<impl Filter>,
-    ) -> anyhow::Result<Vec<OwnedMessage>> {
+    ) -> eyre::Result<Vec<OwnedMessage>> {
         let folders = self.get_folders().await?;
 
         self.crawl_folders(&folders, filter.as_ref()).await
@@ -137,17 +137,17 @@ impl ImapProtocol {
 }
 
 pub struct ImapIdleHandle {
-    handle: tokio::task::JoinHandle<anyhow::Result<async_imap::Session<Box<dyn Conn>>>>,
+    handle: tokio::task::JoinHandle<eyre::Result<async_imap::Session<Box<dyn Conn>>>>,
     stop_flag: Arc<AtomicBool>,
 }
 
 impl ImapIdleHandle {
-    // pub async fn init(&mut self) -> anyhow::Result<()> {
+    // pub async fn init(&mut self) -> eyre::Result<()> {
     //     self.handle.init().await?;
     //     Ok(())
     // }
 
-    pub async fn done(self) -> anyhow::Result<ImapProtocol> {
+    pub async fn done(self) -> eyre::Result<ImapProtocol> {
         self.stop_flag
             .store(true, std::sync::atomic::Ordering::Release);
         let result = self.handle.await?;
@@ -158,7 +158,7 @@ impl ImapIdleHandle {
 impl IdleHandle for ImapIdleHandle {
     type Output = ImapProtocol;
 
-    fn done(self) -> impl std::future::Future<Output = anyhow::Result<Self::Output>> + Send {
+    fn done(self) -> impl std::future::Future<Output = eyre::Result<Self::Output>> + Send {
         async move { self.done().await }
     }
 }
@@ -168,7 +168,7 @@ impl DynEmailReader for ImapProtocol {
     async fn dyn_get_filtered_emails(
         &mut self,
         filter: Option<Box<dyn Filter>>,
-    ) -> anyhow::Result<Vec<OwnedMessage>> {
+    ) -> eyre::Result<Vec<OwnedMessage>> {
         self.get_filtered_emails(filter).await
     }
 }
@@ -176,14 +176,14 @@ impl EmailReader for ImapProtocol {
     fn get_filtered_emails(
         &mut self,
         filter: Option<impl Filter>,
-    ) -> impl std::future::Future<Output = anyhow::Result<Vec<OwnedMessage>>> + Send {
+    ) -> impl std::future::Future<Output = eyre::Result<Vec<OwnedMessage>>> + Send {
         self.get_filtered_emails(filter)
     }
 }
 impl Email for ImapProtocol {
     type IdleHandle = ImapIdleHandle;
 
-    fn idlize(self) -> impl std::future::Future<Output = anyhow::Result<Self::IdleHandle>> + Send {
+    fn idlize(self) -> impl std::future::Future<Output = eyre::Result<Self::IdleHandle>> + Send {
         async move {
             let flag = Arc::new(AtomicBool::new(false));
             let flag_clone = flag.clone();
@@ -211,7 +211,7 @@ pub struct ImapConnector;
 impl Connector for ImapConnector {
     type Protocol = ImapProtocol;
 
-    async fn connect(mailbox: Mailbox) -> anyhow::Result<Self::Protocol> {
+    async fn connect(mailbox: Mailbox) -> eyre::Result<Self::Protocol> {
         let stream = common::connect_maybe_proxied_stream_tls(
             mailbox.protocols.imap.domain.clone(),
             mailbox.protocols.imap.port,

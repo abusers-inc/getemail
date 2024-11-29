@@ -46,7 +46,7 @@ pub trait DynEmailReader: Send {
     async fn dyn_get_filtered_emails(
         &mut self,
         filter: Option<Box<dyn Filter>>,
-    ) -> anyhow::Result<Vec<OwnedMessage>>;
+    ) -> eyre::Result<Vec<OwnedMessage>>;
 }
 
 mod _obj_safety_guard {
@@ -57,25 +57,25 @@ pub trait EmailReader: DynEmailReader {
     fn get_filtered_emails(
         &mut self,
         filter: Option<impl Filter>,
-    ) -> impl std::future::Future<Output = anyhow::Result<Vec<OwnedMessage>>> + Send;
+    ) -> impl std::future::Future<Output = eyre::Result<Vec<OwnedMessage>>> + Send;
 }
 
 pub trait Email: EmailReader {
     type IdleHandle: IdleHandle<Output = Self>;
 
-    fn idlize(self) -> impl std::future::Future<Output = anyhow::Result<Self::IdleHandle>> + Send;
+    fn idlize(self) -> impl std::future::Future<Output = eyre::Result<Self::IdleHandle>> + Send;
 }
 
 pub trait Connector {
     type Protocol: Email;
     fn connect(
         mailbox: Mailbox,
-    ) -> impl std::future::Future<Output = anyhow::Result<Self::Protocol>> + Send;
+    ) -> impl std::future::Future<Output = eyre::Result<Self::Protocol>> + Send;
 }
 
 pub trait IdleHandle: Send {
     type Output;
-    fn done(self) -> impl std::future::Future<Output = anyhow::Result<Self::Output>> + Send;
+    fn done(self) -> impl std::future::Future<Output = eyre::Result<Self::Output>> + Send;
 }
 
 pub trait Filter: Send + Sync {
