@@ -43,10 +43,14 @@ pub struct Mailbox {
 
 #[async_trait::async_trait]
 pub trait DynEmailReader: Send {
-    fn dyn_get_filtered_emails(
+    async fn dyn_get_filtered_emails(
         &mut self,
         filter: Option<Box<dyn Filter>>,
-    ) -> impl std::future::Future<Output = anyhow::Result<Vec<OwnedMessage>>> + Send;
+    ) -> anyhow::Result<Vec<OwnedMessage>>;
+}
+
+mod _obj_safety_guard {
+    pub fn _test(input: Box<dyn super::DynEmailReader>) {}
 }
 
 pub trait EmailReader: DynEmailReader {

@@ -54,11 +54,11 @@ impl IdleHandle for Pop3Handle {
 
 #[async_trait::async_trait]
 impl DynEmailReader for Pop3 {
-    fn dyn_get_filtered_emails(
+    async fn dyn_get_filtered_emails(
         &mut self,
         filter: Option<Box<dyn Filter>>,
-    ) -> impl std::future::Future<Output = anyhow::Result<Vec<OwnedMessage>>> + Send {
-        self.get_filtered_emails(filter)
+    ) -> anyhow::Result<Vec<OwnedMessage>> {
+        self.get_filtered_emails(filter).await
     }
 }
 impl EmailReader for Pop3 {
