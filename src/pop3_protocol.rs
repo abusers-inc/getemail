@@ -1,5 +1,5 @@
-use eyre::eyre;
 use async_pop::response::types::DataType;
+use eyre::eyre;
 
 use super::*;
 
@@ -30,6 +30,7 @@ impl Pop3 {
 
             match filter {
                 Some(ref filter) if filter.filter(&new_msg) => result.push(new_msg),
+                None => result.push(new_msg),
                 _ => {
                     let brw = new_msg.borrow_dependent();
                     tracing::info!(event = "mail.filtered_out", msg = ?brw.subject(), date = ?brw.date());

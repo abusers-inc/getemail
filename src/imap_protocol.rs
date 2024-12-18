@@ -80,7 +80,6 @@ impl ImapProtocol {
             if let Some(ref filter) = filter {
                 if filter.filter(&new_msg) {
                     res.push(new_msg);
-                } else {
                 }
             } else {
                 res.push(new_msg);
