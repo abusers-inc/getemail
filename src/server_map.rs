@@ -49,6 +49,7 @@ impl Endpoints {
 
 pub type Domain = String;
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Server {
     pub domains: Vec<Domain>,
     pub endpoint: Endpoints,
