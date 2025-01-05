@@ -1,4 +1,5 @@
 use std::{
+    io::Read,
     sync::{atomic::AtomicBool, Arc},
     time::Duration,
 };
@@ -6,10 +7,12 @@ use std::{
 use async_imap::types::NameAttribute;
 use futures::StreamExt;
 use mail_parser::MessageParser;
+use proxied::Proxy;
 
 use crate::{
-    common, Conn, Connector, DynEmailReader, Email, EmailReader, Filter, IdleHandle, Mailbox,
-    OwnedMessage,
+    common,
+    server_map::{self},
+    Conn, DynEmailReader, Filter, Mailbox, OwnedMessage,
 };
 
 pub struct PlainAuth {
@@ -51,7 +54,7 @@ impl ImapProtocol {
     pub async fn crawl_messages(
         &mut self,
         folder: &str,
-        filter: Option<&impl Filter>,
+        filter: &impl Filter,
     ) -> eyre::Result<Vec<OwnedMessage>> {
         let mailbox = self.session.select(folder).await?;
         let fetch_result = self
@@ -71,17 +74,12 @@ impl ImapProtocol {
                 .map(|body| body.to_vec())
                 .unwrap_or_else(Vec::new);
 
-            let new_msg = OwnedMessage::try_new(body, |x| {
-                msg_parser
-                    .parse(x)
-                    .ok_or(eyre::eyre!("message parsing failed"))
-            })?;
+            let new_msg = msg_parser
+                .parse(body.as_slice())
+                .map(|x| x.into_owned())
+                .ok_or(eyre::eyre!("message parsing failed"))?;
 
-            if let Some(ref filter) = filter {
-                if filter.filter(&new_msg) {
-                    res.push(new_msg);
-                }
-            } else {
+            if filter.filter(&new_msg) {
                 res.push(new_msg);
             }
         }
@@ -110,16 +108,12 @@ impl ImapProtocol {
     pub async fn crawl_folders(
         &mut self,
         folders: &Vec<String>,
-        filter: Option<impl Filter>,
+        filter: &impl Filter,
     ) -> eyre::Result<Vec<OwnedMessage>> {
         let mut res = Vec::new();
 
         for folder in folders.iter() {
-            res.extend(
-                self.crawl_messages(folder, filter.as_ref())
-                    .await?
-                    .into_iter(),
-            );
+            res.extend(self.crawl_messages(folder, filter).await?.into_iter());
         }
 
         Ok(res)
@@ -127,38 +121,11 @@ impl ImapProtocol {
 
     async fn get_filtered_emails(
         &mut self,
-        filter: Option<impl Filter>,
+        filter: impl Filter,
     ) -> eyre::Result<Vec<OwnedMessage>> {
         let folders = self.get_folders().await?;
 
-        self.crawl_folders(&folders, filter.as_ref()).await
-    }
-}
-
-pub struct ImapIdleHandle {
-    handle: tokio::task::JoinHandle<eyre::Result<async_imap::Session<Box<dyn Conn>>>>,
-    stop_flag: Arc<AtomicBool>,
-}
-
-impl ImapIdleHandle {
-    // pub async fn init(&mut self) -> eyre::Result<()> {
-    //     self.handle.init().await?;
-    //     Ok(())
-    // }
-
-    pub async fn done(self) -> eyre::Result<ImapProtocol> {
-        self.stop_flag
-            .store(true, std::sync::atomic::Ordering::Release);
-        let result = self.handle.await?;
-        result.map(|x| ImapProtocol { session: x })
-    }
-}
-
-impl IdleHandle for ImapIdleHandle {
-    type Output = ImapProtocol;
-
-    fn done(self) -> impl std::future::Future<Output = eyre::Result<Self::Output>> + Send {
-        async move { self.done().await }
+        self.crawl_folders(&folders, &filter).await
     }
 }
 
@@ -166,55 +133,23 @@ impl IdleHandle for ImapIdleHandle {
 impl DynEmailReader for ImapProtocol {
     async fn dyn_get_filtered_emails(
         &mut self,
-        filter: Option<Box<dyn Filter>>,
+        filter: Box<dyn Filter>,
     ) -> eyre::Result<Vec<OwnedMessage>> {
         self.get_filtered_emails(filter).await
     }
 }
-impl EmailReader for ImapProtocol {
-    fn get_filtered_emails(
-        &mut self,
-        filter: Option<impl Filter>,
-    ) -> impl std::future::Future<Output = eyre::Result<Vec<OwnedMessage>>> + Send {
-        self.get_filtered_emails(filter)
-    }
-}
-impl Email for ImapProtocol {
-    type IdleHandle = ImapIdleHandle;
-
-    fn idlize(self) -> impl std::future::Future<Output = eyre::Result<Self::IdleHandle>> + Send {
-        async move {
-            let flag = Arc::new(AtomicBool::new(false));
-            let flag_clone = flag.clone();
-            let session = self.session;
-            let task = || async move {
-                let mut session = session;
-
-                while !flag_clone.load(std::sync::atomic::Ordering::Acquire) {
-                    session.noop().await?;
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                }
-                Ok(session)
-            };
-
-            let task = tokio::task::spawn(task());
-            Ok(ImapIdleHandle {
-                handle: task,
-                stop_flag: flag,
-            })
-        }
-    }
-}
 
 pub struct ImapConnector;
-impl Connector for ImapConnector {
-    type Protocol = ImapProtocol;
-
-    async fn connect(mailbox: Mailbox) -> eyre::Result<Self::Protocol> {
+impl ImapConnector {
+    pub async fn connect(
+        mailbox: Mailbox,
+        server_map::Imap(endpoint): &server_map::Imap,
+        proxy: Option<Proxy>,
+    ) -> eyre::Result<ImapProtocol> {
         let stream = common::connect_maybe_proxied_stream_tls(
-            mailbox.protocols.imap.domain.clone(),
-            mailbox.protocols.imap.port,
-            mailbox.proxy.clone(),
+            endpoint.domain.clone(),
+            endpoint.port,
+            proxy.clone(),
         )
         .await?;
 
@@ -229,7 +164,7 @@ impl Connector for ImapConnector {
                     .authenticate(
                         "PLAIN",
                         PlainAuth {
-                            login: mailbox.login.clone(),
+                            login: mailbox.email.clone(),
                             password,
                         },
                     )
@@ -240,7 +175,7 @@ impl Connector for ImapConnector {
                     .authenticate(
                         "XOAUTH2",
                         OAuth2 {
-                            login: mailbox.login.clone(),
+                            login: mailbox.email.clone(),
                             token,
                         },
                     )

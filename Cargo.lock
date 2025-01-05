@@ -622,7 +622,7 @@ dependencies = [
 
 [[package]]
 name = "getemail"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "anyhow",
  "async-imap",
@@ -635,6 +635,7 @@ dependencies = [
  "futures",
  "futures-util",
  "mail-parser",
+ "paste",
  "proxied",
  "regex",
  "rustls",

@@ -11,7 +11,7 @@ pub struct Pop3 {
 impl Pop3 {
     async fn get_filtered_emails(
         &mut self,
-        filter: Option<impl Filter>,
+        filter: impl Filter,
     ) -> eyre::Result<Vec<OwnedMessage>> {
         let stat = self.client.stat().await?;
         let total_msg_count = stat.counter().value()?;
@@ -24,17 +24,13 @@ impl Pop3 {
             let bytes = self.client.retr(curr_msg_id).await?.to_vec();
 
             let parser = MessageParser::new();
-            let new_msg = OwnedMessage::try_new(bytes, |x| {
-                parser.parse(x).ok_or(eyre!("message parsing failed"))
-            })?;
+            let new_msg = parser
+                .parse(bytes.as_slice())
+                .ok_or(eyre!("message parsing failed"))?
+                .into_owned();
 
-            match filter {
-                Some(ref filter) if filter.filter(&new_msg) => result.push(new_msg),
-                None => result.push(new_msg),
-                _ => {
-                    let brw = new_msg.borrow_dependent();
-                    tracing::info!(event = "mail.filtered_out", msg = ?brw.subject(), date = ?brw.date());
-                }
+            if filter.filter(&new_msg) {
+                result.push(new_msg)
             }
         }
 
@@ -42,52 +38,27 @@ impl Pop3 {
     }
 }
 
-pub struct Pop3Handle(Mailbox);
-
-impl IdleHandle for Pop3Handle {
-    type Output = Pop3;
-
-    async fn done(self) -> eyre::Result<Self::Output> {
-        let connect = Pop3Connector::connect(self.0).await?;
-        Ok(connect)
-    }
-}
-
 #[async_trait::async_trait]
 impl DynEmailReader for Pop3 {
     async fn dyn_get_filtered_emails(
         &mut self,
-        filter: Option<Box<dyn Filter>>,
+        filter: Box<dyn Filter>,
     ) -> eyre::Result<Vec<OwnedMessage>> {
         self.get_filtered_emails(filter).await
     }
 }
-impl EmailReader for Pop3 {
-    fn get_filtered_emails(
-        &mut self,
-        filter: Option<impl Filter>,
-    ) -> impl std::future::Future<Output = eyre::Result<Vec<OwnedMessage>>> + Send {
-        self.get_filtered_emails(filter)
-    }
-}
-impl Email for Pop3 {
-    type IdleHandle = Pop3Handle;
-
-    async fn idlize(mut self) -> eyre::Result<Self::IdleHandle> {
-        self.client.quit().await?;
-        Ok(Pop3Handle(self.mailbox_info))
-    }
-}
 
 pub struct Pop3Connector;
-impl Connector for Pop3Connector {
-    type Protocol = Pop3;
-
-    async fn connect(mailbox: Mailbox) -> eyre::Result<Self::Protocol> {
+impl Pop3Connector {
+    pub async fn connect(
+        mailbox: Mailbox,
+        server_map::Pop3(endpoint): &server_map::Pop3,
+        proxy: Option<Proxy>,
+    ) -> eyre::Result<Pop3> {
         let stream = common::connect_maybe_proxied_stream_tls(
-            mailbox.protocols.pop3.domain.clone(),
-            mailbox.protocols.pop3.port,
-            mailbox.proxy.clone(),
+            endpoint.domain.clone(),
+            endpoint.port,
+            proxy.clone(),
         )
         .await?;
 
@@ -95,10 +66,10 @@ impl Connector for Pop3Connector {
 
         match &mailbox.auth {
             AuthorizationMechanism::Password(password) => {
-                client.login(&mailbox.login, &password).await?;
+                client.login(&mailbox.email, &password).await?;
             }
             AuthorizationMechanism::OAuth2(token) => {
-                let authorizer = async_pop::sasl::OAuth2Authenticator::new(&mailbox.login, token);
+                let authorizer = async_pop::sasl::OAuth2Authenticator::new(&mailbox.email, token);
                 client.auth(authorizer).await?;
             }
         };
@@ -109,3 +80,5 @@ impl Connector for Pop3Connector {
         })
     }
 }
+
+pub use filters::*;
