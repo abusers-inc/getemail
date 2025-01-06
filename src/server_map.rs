@@ -15,13 +15,16 @@ pub struct ProtocolEndpoint {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[serde(transparent)]
 pub struct Imap(pub Endpoint);
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[serde(transparent)]
 pub struct Pop3(pub Endpoint);
 
 pub type Endpoint = ProtocolEndpoint;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(untagged)]
 pub enum Endpoints {
     Pop3(Pop3),
 
