@@ -619,7 +619,7 @@ dependencies = [
 
 [[package]]
 name = "getemail"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "async-imap",
  "async-pop",

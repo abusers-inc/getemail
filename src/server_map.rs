@@ -26,9 +26,9 @@ pub type Endpoint = ProtocolEndpoint;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(untagged)]
 pub enum Endpoints {
-    Pop3(Pop3),
+    Pop3 { pop3: Pop3 },
 
-    Imap(Imap),
+    Imap { imap: Imap },
 
     Full { pop3: Pop3, imap: Imap },
 }
@@ -36,16 +36,16 @@ pub enum Endpoints {
 impl Endpoints {
     pub fn get_pop3(&self) -> Option<&Pop3> {
         match self {
-            Endpoints::Pop3(pop3) => Some(&pop3),
-            Endpoints::Imap(_) => None,
+            Endpoints::Pop3 { pop3 } => Some(&pop3),
+            Endpoints::Imap { .. } => None,
             Endpoints::Full { pop3, .. } => Some(&pop3),
         }
     }
     pub fn get_imap(&self) -> Option<&Imap> {
         match self {
-            Endpoints::Imap(imap) => Some(&imap),
+            Endpoints::Imap { imap } => Some(&imap),
             Endpoints::Full { imap, .. } => Some(&imap),
-            Endpoints::Pop3(_) => None,
+            Endpoints::Pop3 { .. } => None,
         }
     }
 }
