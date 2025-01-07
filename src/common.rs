@@ -41,7 +41,11 @@ pub(crate) async fn connect_maybe_proxied_stream_tls(
                 .ok_or_else(|| eyre::eyre!("mail lookup failed"))?;
             mail_socket.set_port(port);
 
-            Box::new(tokio::net::TcpStream::connect(mail_socket).await?)
+            let stream = tokio::net::TcpStream::connect(mail_socket).await?;
+            stream.set_nodelay(true)?;
+            stream.set_linger(None)?;
+
+            Box::new(stream)
         }
     };
     let stream = connector
