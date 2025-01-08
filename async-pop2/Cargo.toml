@@ -20,6 +20,7 @@ tokio = { version = "1.35.1", features = [
 	"time",
 	"rt",
 	"macros",
+	"io-util"
 ], optional = true }
 
 [dev-dependencies]
@@ -27,6 +28,7 @@ env_logger = "0.10.0"
 dotenv = "0.15"
 
 [features]
-sasl = ["dep:base64", "dep:async-trait"]
+default = ["sasl", "runtime-tokio"]
 
-runtime-tokio = ["tokio"]
+sasl = ["dep:base64", "dep:async-trait"]
+runtime-tokio = ["dep:tokio"]

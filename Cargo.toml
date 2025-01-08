@@ -1,8 +1,6 @@
 [workspace]
 members = ["async-pop2"]
 
-[workspace.dependencies]
-
 [package]
 name = "getemail"
 license = "MIT"
