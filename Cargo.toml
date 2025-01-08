@@ -4,7 +4,10 @@ license = "MIT"
 version = "0.1.6"
 edition = "2021"
 description = "Get email's from POP3 or IMAP mailbox"
-repo = "https://github.com/abusers-inc/getemail"
+repository = "https://github.com/abusers-inc/getemail"
+homepage = "https://crates.io/getemail"
+documentation = "https://docs.rs/getemail/latest/getemail/"
+
 
 [dependencies]
 serde = { version = "1.0.197", features = ["derive"] }
