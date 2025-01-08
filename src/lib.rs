@@ -1,5 +1,4 @@
 use eyre::OptionExt;
-use filters::Filter;
 use imap_protocol::ImapConnector;
 pub use mail_parser;
 use mail_parser::{Message, MessageParser};

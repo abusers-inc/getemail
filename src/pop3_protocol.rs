@@ -1,10 +1,10 @@
-use async_pop::response::types::DataType;
+use async_pop2::response::types::DataType;
 use eyre::eyre;
 
 use super::*;
 
 pub struct Pop3 {
-    client: async_pop::Client<Box<dyn Conn>>,
+    client: async_pop2::Client<Box<dyn Conn>>,
     mailbox_info: Mailbox,
 }
 
@@ -62,14 +62,14 @@ impl Pop3Connector {
         )
         .await?;
 
-        let mut client = async_pop::new(stream).await?;
+        let mut client = async_pop2::new(stream).await?;
 
         match &mailbox.auth {
             AuthorizationMechanism::Password(password) => {
                 client.login(&mailbox.email, &password).await?;
             }
             AuthorizationMechanism::OAuth2(token) => {
-                let authorizer = async_pop::sasl::OAuth2Authenticator::new(&mailbox.email, token);
+                let authorizer = async_pop2::sasl::OAuth2Authenticator::new(&mailbox.email, token);
                 client.auth(authorizer).await?;
             }
         };
