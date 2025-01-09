@@ -1,4 +1,3 @@
-use eyre::OptionExt;
 use imap_protocol::ImapConnector;
 pub use mail_parser;
 use mail_parser::{Message, MessageParser};
@@ -46,6 +45,33 @@ impl Mailbox {
 
 pub type OwnedMessage = Message<'static>;
 
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("this mailbox is invalid: can't distinguish domain part")]
+    MailboxInvalidDomain { login: String },
+
+    #[error("couldn't find server entry for this mailbox: {domain}")]
+    ServerNotFound { domain: String },
+
+    #[error("couldn't parse message")]
+    MessageParseFailed,
+
+    #[error("Imap-specific error")]
+    Imap(#[from] async_imap::error::Error),
+
+    #[error("pop-specific erro")]
+    Pop(#[from] async_pop2::error::Error),
+
+    #[error("failed connection to proxy")]
+    Proxy(#[from] proxied::ConnectError),
+
+    #[error("failed to resolve dns of email server")]
+    ResolveDns,
+
+    #[error("socket failed")]
+    Socket(#[from] std::io::Error),
+}
+
 /// Dynamic email reader
 #[async_trait::async_trait]
 pub trait DynEmailReader: Send {
@@ -55,7 +81,7 @@ pub trait DynEmailReader: Send {
     async fn dyn_get_filtered_emails(
         &mut self,
         filter: Box<dyn Filter>,
-    ) -> eyre::Result<Vec<OwnedMessage>>;
+    ) -> Result<Vec<OwnedMessage>, Error>;
 }
 
 mod _obj_safety_guard {
@@ -70,18 +96,19 @@ pub async fn connect_any(
     mailbox: Mailbox,
     proxy: Option<Proxy>,
     map: &ServerMap,
-) -> eyre::Result<Box<dyn DynEmailReader>> {
-    let entry = map.get_by_domain(
-        mailbox
-            .get_domain()
-            .ok_or_eyre("invalid email: it doesn't have domain")?,
-    );
+) -> Result<Box<dyn DynEmailReader>, Error> {
+    let domain = mailbox.get_domain().ok_or(Error::MailboxInvalidDomain {
+        login: mailbox.email.clone(),
+    })?;
+    let entry = map.get_by_domain(domain);
 
     let Some(entry) = entry else {
-        eyre::bail!("this domain connection details are unknown");
+        return Err(Error::ServerNotFound {
+            domain: domain.to_owned(),
+        });
     };
 
-    let mut err: Option<eyre::Report> = None;
+    let mut err: Option<Error> = None;
     if let Some(imap) = entry.get_imap() {
         match ImapConnector::connect(mailbox.clone(), imap, proxy.clone()).await {
             Ok(imap) => return Ok(Box::new(imap)),
@@ -104,7 +131,7 @@ pub async fn connect_any(
 pub async fn connect_any_global_map(
     mailbox: Mailbox,
     proxy: Option<Proxy>,
-) -> eyre::Result<Box<dyn DynEmailReader>> {
+) -> Result<Box<dyn DynEmailReader>, Error> {
     let map = ArcMap::global();
     let read_lock = map.read().await;
 

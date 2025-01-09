@@ -5,7 +5,7 @@ use proxied::Proxy;
 use rustls::pki_types::ServerName;
 use tokio_rustls::TlsConnector;
 
-use crate::Conn;
+use crate::{Conn, Error};
 fn create_connector() -> TlsConnector {
     let root_store = rustls::RootCertStore {
         roots: webpki_roots::TLS_SERVER_ROOTS.iter().cloned().collect(),
@@ -22,7 +22,7 @@ pub(crate) async fn connect_maybe_proxied_stream_tls(
     domain: String,
     port: u16,
     proxy: Option<Proxy>,
-) -> eyre::Result<Box<dyn Conn>> {
+) -> Result<Box<dyn Conn>, Error> {
     let connector = create_connector();
 
     let tunnel: Box<dyn Conn> = match proxy {
@@ -36,9 +36,7 @@ pub(crate) async fn connect_maybe_proxied_stream_tls(
         ),
         None => {
             let mut resolved = tokio::net::lookup_host((domain.clone(), port)).await?;
-            let mut mail_socket = resolved
-                .next()
-                .ok_or_else(|| eyre::eyre!("mail lookup failed"))?;
+            let mut mail_socket = resolved.next().ok_or(Error::ResolveDns)?;
             mail_socket.set_port(port);
 
             let stream = tokio::net::TcpStream::connect(mail_socket).await?;

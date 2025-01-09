@@ -1,5 +1,4 @@
 use async_pop2::response::types::DataType;
-use eyre::eyre;
 
 use super::*;
 
@@ -12,7 +11,7 @@ impl Pop3 {
     async fn get_filtered_emails(
         &mut self,
         filter: impl Filter,
-    ) -> eyre::Result<Vec<OwnedMessage>> {
+    ) -> Result<Vec<OwnedMessage>, Error> {
         let stat = self.client.stat().await?;
         let total_msg_count = stat.counter().value()?;
         let mut result = Vec::new();
@@ -26,7 +25,7 @@ impl Pop3 {
             let parser = MessageParser::new();
             let new_msg = parser
                 .parse(bytes.as_slice())
-                .ok_or(eyre!("message parsing failed"))?
+                .ok_or(Error::MessageParseFailed)?
                 .into_owned();
 
             if filter.filter(&new_msg) {
@@ -43,7 +42,7 @@ impl DynEmailReader for Pop3 {
     async fn dyn_get_filtered_emails(
         &mut self,
         filter: Box<dyn Filter>,
-    ) -> eyre::Result<Vec<OwnedMessage>> {
+    ) -> Result<Vec<OwnedMessage>, Error> {
         self.get_filtered_emails(filter).await
     }
 }
@@ -54,7 +53,7 @@ impl Pop3Connector {
         mailbox: Mailbox,
         server_map::Pop3(endpoint): &server_map::Pop3,
         proxy: Option<Proxy>,
-    ) -> eyre::Result<Pop3> {
+    ) -> Result<Pop3, Error> {
         let stream = common::connect_maybe_proxied_stream_tls(
             endpoint.domain.clone(),
             endpoint.port,

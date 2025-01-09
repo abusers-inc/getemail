@@ -12,7 +12,7 @@ use proxied::Proxy;
 use crate::{
     common,
     server_map::{self},
-    Conn, DynEmailReader, Filter, Mailbox, OwnedMessage,
+    Conn, DynEmailReader, Error, Filter, Mailbox, OwnedMessage,
 };
 
 pub struct PlainAuth {
@@ -55,7 +55,7 @@ impl ImapProtocol {
         &mut self,
         folder: &str,
         filter: &impl Filter,
-    ) -> eyre::Result<Vec<OwnedMessage>> {
+    ) -> Result<Vec<OwnedMessage>, Error> {
         let mailbox = self.session.select(folder).await?;
         let fetch_result = self
             .session
@@ -77,7 +77,7 @@ impl ImapProtocol {
             let new_msg = msg_parser
                 .parse(body.as_slice())
                 .map(|x| x.into_owned())
-                .ok_or(eyre::eyre!("message parsing failed"))?;
+                .ok_or(Error::MessageParseFailed)?;
 
             if filter.filter(&new_msg) {
                 res.push(new_msg);
@@ -87,7 +87,7 @@ impl ImapProtocol {
         Ok(res)
     }
 
-    async fn get_folders(&mut self) -> eyre::Result<Vec<String>> {
+    async fn get_folders(&mut self) -> Result<Vec<String>, Error> {
         let server_folders: Vec<_> = self
             .session
             .list(None, Some("*"))
@@ -109,7 +109,7 @@ impl ImapProtocol {
         &mut self,
         folders: &Vec<String>,
         filter: &impl Filter,
-    ) -> eyre::Result<Vec<OwnedMessage>> {
+    ) -> Result<Vec<OwnedMessage>, Error> {
         let mut res = Vec::new();
 
         for folder in folders.iter() {
@@ -122,7 +122,7 @@ impl ImapProtocol {
     async fn get_filtered_emails(
         &mut self,
         filter: impl Filter,
-    ) -> eyre::Result<Vec<OwnedMessage>> {
+    ) -> Result<Vec<OwnedMessage>, Error> {
         let folders = self.get_folders().await?;
 
         self.crawl_folders(&folders, &filter).await
@@ -134,7 +134,7 @@ impl DynEmailReader for ImapProtocol {
     async fn dyn_get_filtered_emails(
         &mut self,
         filter: Box<dyn Filter>,
-    ) -> eyre::Result<Vec<OwnedMessage>> {
+    ) -> Result<Vec<OwnedMessage>, Error> {
         self.get_filtered_emails(filter).await
     }
 }
@@ -145,7 +145,7 @@ impl ImapConnector {
         mailbox: Mailbox,
         server_map::Imap(endpoint): &server_map::Imap,
         proxy: Option<Proxy>,
-    ) -> eyre::Result<ImapProtocol> {
+    ) -> Result<ImapProtocol, Error> {
         let stream = common::connect_maybe_proxied_stream_tls(
             endpoint.domain.clone(),
             endpoint.port,
