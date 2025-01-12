@@ -18,9 +18,10 @@ impl<T: tokio::io::AsyncRead + AsyncWrite + Unpin + Send + std::fmt::Debug> Conn
 pub mod server_map;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[serde(untagged)]
 pub enum AuthorizationMechanism {
-    Password(String),
-    OAuth2(String),
+    Password { password: String },
+    OAuth2 { token: String },
 }
 
 /// Credentials of mailbox

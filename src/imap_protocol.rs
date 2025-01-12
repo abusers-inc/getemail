@@ -159,7 +159,7 @@ impl ImapConnector {
         client.run_command_and_check_ok("CAPABILITY", None).await?;
 
         let client = match mailbox.auth.clone() {
-            crate::AuthorizationMechanism::Password(password) => {
+            crate::AuthorizationMechanism::Password { password } => {
                 client
                     .authenticate(
                         "PLAIN",
@@ -170,7 +170,7 @@ impl ImapConnector {
                     )
                     .await
             }
-            crate::AuthorizationMechanism::OAuth2(token) => {
+            crate::AuthorizationMechanism::OAuth2 { token } => {
                 client
                     .authenticate(
                         "XOAUTH2",

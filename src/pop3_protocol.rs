@@ -64,10 +64,10 @@ impl Pop3Connector {
         let mut client = async_pop2::new(stream).await?;
 
         match &mailbox.auth {
-            AuthorizationMechanism::Password(password) => {
+            AuthorizationMechanism::Password { password } => {
                 client.login(&mailbox.email, &password).await?;
             }
-            AuthorizationMechanism::OAuth2(token) => {
+            AuthorizationMechanism::OAuth2 { token } => {
                 let authorizer = async_pop2::sasl::OAuth2Authenticator::new(&mailbox.email, token);
                 client.auth(authorizer).await?;
             }

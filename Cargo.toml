@@ -4,7 +4,7 @@ members = ["async-pop2"]
 [package]
 name = "getemail"
 license = "MIT"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 description = "Get email's from POP3 or IMAP mailbox"
 repository = "https://github.com/abusers-inc/getemail"
