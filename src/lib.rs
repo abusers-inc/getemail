@@ -29,6 +29,7 @@ pub enum AuthorizationMechanism {
 pub struct Mailbox {
     #[serde(alias = "login", alias = "username")]
     pub email: String,
+    #[serde(flatten)]
     pub auth: AuthorizationMechanism,
 }
 
