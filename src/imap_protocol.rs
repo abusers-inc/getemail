@@ -88,21 +88,29 @@ impl ImapProtocol {
     }
 
     async fn get_folders(&mut self) -> Result<Vec<String>, Error> {
-        let server_folders: Vec<_> = self
-            .session
-            .list(None, Some("*"))
-            .await?
-            .filter_map(|x| async move {
-                x.ok()
-                    .filter(|x| {
-                        x.attributes()
-                            .iter()
-                            .all(|x| ![NameAttribute::Sent, NameAttribute::Drafts].contains(x))
-                    })
-                    .map(|x| x.name().to_string())
-            })
-            .collect()
-            .await;
+        let mut server_folders = vec![];
+
+        let mut stream = self.session.list(None, Some("*")).await?;
+
+        while let Some(item) = stream.next().await {
+            match item {
+                Ok(item) => {
+                    let is_ok_folder = item
+                        .attributes()
+                        .iter()
+                        .all(|x| ![NameAttribute::Sent, NameAttribute::Drafts].contains(x));
+
+                    if is_ok_folder {
+                        server_folders.push(item.name().to_string());
+                    }
+                }
+
+                Err(err) => {
+                    return Err(Error::Imap(err));
+                }
+            }
+        }
+
         Ok(server_folders)
     }
     pub async fn crawl_folders(
