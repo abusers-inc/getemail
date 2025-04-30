@@ -1,9 +1,3 @@
-use std::{
-    io::Read,
-    sync::{atomic::AtomicBool, Arc},
-    time::Duration,
-};
-
 use async_imap::types::NameAttribute;
 use futures::StreamExt;
 use mail_parser::MessageParser;
@@ -29,12 +23,12 @@ impl async_imap::Authenticator for PlainAuth {
     }
 }
 
-struct OAuth2 {
-    pub login: String,
-    pub token: String,
+struct OAuth2<'a> {
+    pub login: &'a str,
+    pub token: &'a str,
 }
 
-impl async_imap::Authenticator for OAuth2 {
+impl<'a> async_imap::Authenticator for OAuth2<'a> {
     type Response = String;
 
     fn process(&mut self, _: &[u8]) -> Self::Response {
@@ -166,25 +160,25 @@ impl ImapConnector {
 
         client.run_command_and_check_ok("CAPABILITY", None).await?;
 
-        let client = match mailbox.auth.clone() {
-            crate::AuthorizationMechanism::Password { password } => {
+        let client = match mailbox.oauth2.as_ref() {
+            None => {
                 client
                     .authenticate(
                         "PLAIN",
                         PlainAuth {
                             login: mailbox.email.clone(),
-                            password,
+                            password: mailbox.password,
                         },
                     )
                     .await
             }
-            crate::AuthorizationMechanism::OAuth2 { token } => {
+            Some(oauth) => {
                 client
                     .authenticate(
                         "XOAUTH2",
                         OAuth2 {
-                            login: mailbox.email.clone(),
-                            token,
+                            login: &mailbox.email,
+                            token: &oauth.access.token,
                         },
                     )
                     .await

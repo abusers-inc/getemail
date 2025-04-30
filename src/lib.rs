@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use imap_protocol::ImapConnector;
 pub use mail_parser;
 use mail_parser::{Message, MessageParser};
@@ -18,10 +19,15 @@ impl<T: tokio::io::AsyncRead + AsyncWrite + Unpin + Send + std::fmt::Debug> Conn
 pub mod server_map;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-#[serde(untagged)]
-pub enum AuthorizationMechanism {
-    Password { password: String },
-    OAuth2 { token: String },
+pub struct OAuthToken {
+    pub token: String,
+    pub token_expiration: DateTime<Utc>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct OAuthData {
+    pub access: OAuthToken,
+    pub refresh: OAuthToken,
 }
 
 /// Credentials of mailbox
@@ -29,8 +35,8 @@ pub enum AuthorizationMechanism {
 pub struct Mailbox {
     #[serde(alias = "login", alias = "username")]
     pub email: String,
-    #[serde(flatten)]
-    pub auth: AuthorizationMechanism,
+    pub password: String,
+    pub oauth2: Option<OAuthData>,
 }
 
 impl Mailbox {
