@@ -1,10 +1,10 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use chrono::{DateTime, Utc};
 use date::DateFilter;
 use logical::{And, Or};
 use sender::Sender;
-use subject::Subject;
+use subject::{Subject, SubjectContains};
 
 use crate::OwnedMessage;
 
@@ -97,8 +97,12 @@ impl Filters {
 
 define_impl_ext! {
     impl Filters {
-        pub fn subject(s: impl Into<String>) -> impl Filter {
+        pub fn subject(s: impl Into<Cow<'static, str>>) -> impl Filter {
             Subject::new(s.into())
+        }
+
+        pub fn subject_contains(s: impl Into<Cow<'static, str>>) -> impl Filter {
+            SubjectContains::new(s.into())
         }
 
         pub fn sender(s: impl Into<String>) -> impl Filter {
@@ -155,13 +159,15 @@ mod logical {
     }
 }
 mod subject {
+    use std::borrow::Cow;
+
     use super::Filter;
 
     pub struct Subject {
-        subject: String,
+        subject: Cow<'static, str>,
     }
     impl Subject {
-        pub fn new(subject: String) -> Self {
+        pub fn new(subject: Cow<'static, str>) -> Self {
             Self { subject }
         }
     }
@@ -172,7 +178,27 @@ mod subject {
                 return false;
             };
 
-            msg_subject == self.subject.as_str()
+            msg_subject == self.subject.as_ref()
+        }
+    }
+
+    pub struct SubjectContains {
+        pattern: Cow<'static, str>,
+    }
+
+    impl SubjectContains {
+        pub fn new(pattern: Cow<'static, str>) -> Self {
+            Self { pattern }
+        }
+    }
+
+    impl Filter for SubjectContains {
+        fn filter(&self, msg: &crate::OwnedMessage) -> bool {
+            let Some(msg_subject) = msg.subject() else {
+                return false;
+            };
+
+            msg_subject.contains(self.pattern.as_ref())
         }
     }
 }
